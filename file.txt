@@ -1,0 +1,1198 @@
+-- ============================
+-- ANTI-LOGGER & PROTECTION
+-- ============================
+-- Place this at the TOP of your script
+
+local function protectScript()
+    -- Anti-Remote Spy Protection
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        local args = {...}
+        
+        -- Block common remote spy methods
+        if method == "FireServer" or method == "InvokeServer" then
+            -- Check if it's being called from a spy/logger
+            local callingScript = getcallingscript()
+            if callingScript and (
+                callingScript.Name:lower():find("spy") or
+                callingScript.Name:lower():find("logger") or
+                callingScript.Name:lower():find("remote") or
+                callingScript.Name:lower():find("debug")
+            ) then
+                return -- Block the call
+            end
+        end
+        
+        return oldNamecall(self, ...)
+    end)
+    
+    -- Protect against hookfunction detection
+    if hookfunction then
+        local protecc = {
+            game.HttpGet,
+            game.GetObjects
+        }
+        
+        for _, func in pairs(protecc) do
+            hookfunction(func, function(...)
+                local args = {...}
+                -- Check if the URL contains common logger domains
+                if args[2] and type(args[2]) == "string" then
+                    local url = args[2]:lower()
+                    if url:find("logger") or url:find("webhook") or url:find("spy") then
+                        return nil -- Block malicious requests
+                    end
+                end
+                return func(...)
+            end)
+        end
+    end
+    
+    -- Anti-Decompiler Protection
+    if getgc then
+        local gc = getgc(true)
+        for _, obj in pairs(gc) do
+            if type(obj) == "function" then
+                local info = debug.getinfo(obj)
+                if info.name and (
+                    info.name:lower():find("decompile") or
+                    info.name:lower():find("getscript") or
+                    info.name:lower():find("getsource")
+                ) then
+                    hookfunction(obj, function()
+                        return nil
+                    end)
+                end
+            end
+        end
+    end
+    
+    -- Block Console Logging
+    if rconsoleprint then
+        hookfunction(rconsoleprint, function() end)
+    end
+    if rconsoleclear then
+        hookfunction(rconsoleclear, function() end)
+    end
+    if rconsolewarn then
+        hookfunction(rconsolewarn, function() end)
+    end
+    if rconsoleerr then
+        hookfunction(rconsoleerr, function() end)
+    end
+    
+    -- Protect against script detection
+    if gethui then
+        local hiddenUI = gethui()
+        if hiddenUI then
+            hiddenUI.Name = game:GetService("HttpService"):GenerateGUID(false)
+        end
+    end
+    
+    -- Anti-Script Scanner
+    local protectedFunctions = {}
+    
+    if newcclosure then
+        -- Wrap important functions
+        local function wrapFunction(func)
+            return newcclosure(func)
+        end
+        
+        -- Store original functions
+        protectedFunctions.FireServer = game.FireServer
+        protectedFunctions.InvokeServer = game.InvokeServer
+    end
+    
+    -- Block common logger remotes
+    local blockedRemoteNames = {
+        "Logger",
+        "Spy",
+        "RemoteSpy",
+        "Hook",
+        "Capture",
+        "Monitor"
+    }
+    
+    for _, remoteName in pairs(blockedRemoteNames) do
+        local remote = game:GetDescendants()
+        for _, obj in pairs(remote) do
+            if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+                if obj.Name:find(remoteName) then
+                    obj:Destroy()
+                end
+            end
+        end
+    end
+    
+    -- Environment Protection
+    local env = getfenv()
+    local protectedEnv = setmetatable({}, {
+        __index = function(_, key)
+            -- Block access to sensitive functions
+            local blocked = {
+                "getgc",
+                "debug",
+                "getinfo",
+                "getupvalue",
+                "getconstants",
+                "getprotos"
+            }
+            
+            for _, blocked_key in pairs(blocked) do
+                if key:lower():find(blocked_key) then
+                    return nil
+                end
+            end
+            
+            return env[key]
+        end,
+        __newindex = function(_, key, value)
+            env[key] = value
+        end
+    })
+    
+    setfenv(2, protectedEnv)
+    
+    -- Anti-Memory Scanner
+    if setthreadidentity then
+        setthreadidentity(8) -- Set to highest level
+    end
+    
+    -- Scramble error messages
+    local oldError = error
+    error = function(msg, ...)
+        if type(msg) == "string" then
+            msg = string.rep("*", #msg) -- Hide actual error
+        end
+        return oldError(msg, ...)
+    end
+    
+    -- Block decompilation tools
+    if decompile then
+        decompile = function()
+            return "-- Protected Script"
+        end
+    end
+    
+    if getscriptbytecode then
+        hookfunction(getscriptbytecode, function()
+            return "Protected"
+        end)
+    end
+    
+    -- Anti-Dump Protection
+    if dumptable then
+        dumptable = function()
+            return {}
+        end
+    end
+    
+    -- Protect against clipboard loggers
+    if setclipboard then
+        local oldSetClipboard = setclipboard
+        setclipboard = function(text)
+            -- Only allow non-sensitive data
+            if type(text) == "string" and #text < 1000 then
+                return oldSetClipboard(text)
+            end
+        end
+    end
+    
+    print("✅ Anti-Logger Protection Enabled")
+end
+
+-- Execute protection
+local success, err = pcall(protectScript)
+if not success then
+    warn("Protection failed to load:", err)
+end
+
+-- ============================
+-- YOUR SCRIPT GOES BELOW HERE
+-- ============================
+local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Pxrson/Library/refs/heads/main/Library"))()
+getgenv().ui_options = getgenv().ui_options or {}
+getgenv().ui_options.main_color = Color3.fromRGB(41, 74, 122)
+getgenv().ui_options.min_size = Vector2.new(550, 400)
+
+local window = library:AddWindow("[ 👑 ] Pack Farm Only", getgenv().ui_options)
+local packTab = window:AddTab("Pack Farms")
+local statsTab = window:AddTab("Stats")
+local webhookTab = window:AddTab("Webhook")
+
+packTab:Show()
+
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+local LocalPlayer = player
+local leaderstats = player:WaitForChild("leaderstats")
+local muscleEvent = player:WaitForChild("muscleEvent")
+local MuscleEvent = muscleEvent
+local rebirthEvent = ReplicatedStorage.rEvents.rebirthRemote
+local equipEvent = ReplicatedStorage.rEvents.equipPetEvent
+
+local char = player.Character or player.CharacterAdded:Wait()
+local hrp = char:WaitForChild("HumanoidRootPart")
+local hum = char:WaitForChild("Humanoid")
+
+player.CharacterAdded:Connect(function(newChar)
+    char = newChar
+    hrp = newChar:WaitForChild("HumanoidRootPart")
+    hum = newChar:WaitForChild("Humanoid")
+end)
+
+local packRebirthValues = {[0] = 1, [1] = 2, [2] = 4, [3] = 6, [4] = 8, [5] = 10, [6] = 12, [7] = 14, [8] = 16}
+local petCache = {SwiftSamurai = {}, TribalOverlord = {}}
+local equippedSwifts = {}
+local equippedTribals = {}
+local machineCache = {}
+local farmActive = false
+local targetAmount = 1
+local infiniteMode = false
+local posLockConn = nil
+local strengthConn = nil
+local machineSeat = nil
+local petsToUse = 8
+local continueAfterTarget = false
+local maxPing = 500
+local autoPingStop = false
+local autoEggShake = false
+local eggRunning = false
+local shakeRunning = false
+
+local webhookSettings = {
+    url = "",
+    interval = 300,
+    sendStrength = false,
+    sendRebirth = false,
+    sendDurability = false,
+    sendTargetReached = false,
+    lastSent = 0
+}
+
+local sessionStats = {
+    startTime = tick(),
+    startStrength = 0,
+    startDurability = 0,
+    startRebirths = 0,
+    history = {
+        strength = {},
+        durability = {},
+        rebirths = {}
+    }
+}
+
+local function initializeStats()
+    sessionStats.startStrength = leaderstats.Strength.Value
+    sessionStats.startDurability = player.Durability.Value
+    sessionStats.startRebirths = leaderstats.Rebirths.Value
+    sessionStats.startTime = tick()
+end
+
+local function formatNumber(num)
+    local suffixes = {"", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc"}
+    local suffix = 1
+    
+    while num >= 1000 and suffix < #suffixes do
+        num = num / 1000
+        suffix = suffix + 1
+    end
+    
+    local formatted = string.format("%.2f", num)
+    if formatted:match("%.00$") then
+        formatted = formatted:gsub("%.00$", "")
+    end
+    
+    return formatted .. suffixes[suffix]
+end
+
+local function formatTime(seconds)
+    if seconds == math.huge or seconds ~= seconds then
+        return "∞"
+    end
+    
+    local days = math.floor(seconds / 86400)
+    local hours = math.floor((seconds % 86400) / 3600)
+    local mins = math.floor((seconds % 3600) / 60)
+    local secs = math.floor(seconds % 60)
+    
+    if days > 0 then
+        return string.format("%dd %dh %dm", days, hours, mins)
+    elseif hours > 0 then
+        return string.format("%dh %dm %ds", hours, mins, secs)
+    elseif mins > 0 then
+        return string.format("%dm %ds", mins, secs)
+    else
+        return string.format("%ds", secs)
+    end
+end
+
+local function recordSnapshot()
+    local now = tick()
+    table.insert(sessionStats.history.strength, {time = now, value = leaderstats.Strength.Value})
+    table.insert(sessionStats.history.durability, {time = now, value = player.Durability.Value})
+    table.insert(sessionStats.history.rebirths, {time = now, value = leaderstats.Rebirths.Value})
+    
+    while #sessionStats.history.strength > 150 do
+        table.remove(sessionStats.history.strength, 1)
+    end
+    while #sessionStats.history.durability > 150 do
+        table.remove(sessionStats.history.durability, 1)
+    end
+    while #sessionStats.history.rebirths > 150 do
+        table.remove(sessionStats.history.rebirths, 1)
+    end
+end
+
+local function calculateRate(history, currentValue)
+    if #history < 2 then
+        return 0
+    end
+    
+    local now = tick()
+    local oneMinuteAgo = now - 60
+    local closestSnapshot = nil
+    
+    for i = #history, 1, -1 do
+        if history[i].time <= oneMinuteAgo then
+            closestSnapshot = history[i]
+            break
+        end
+    end
+    
+    if closestSnapshot then
+        local timeDiff = now - closestSnapshot.time
+        local valueDiff = currentValue - closestSnapshot.value
+        if timeDiff > 0 and valueDiff >= 0 then
+            return (valueDiff / timeDiff) * 60
+        end
+    else
+        local oldest = history[1]
+        local timeDiff = now - oldest.time
+        local valueDiff = currentValue - oldest.value
+        if timeDiff > 0 and valueDiff >= 0 then
+            return (valueDiff / timeDiff) * 60
+        end
+    end
+    
+    return 0
+end
+
+local function calculateTimeToTarget()
+    local currentRebirths = leaderstats.Rebirths.Value
+    if currentRebirths >= targetAmount then
+        return 0
+    end
+    
+    local rebirthsNeeded = targetAmount - currentRebirths
+    local rebirthRate = calculateRate(sessionStats.history.rebirths, currentRebirths)
+    
+    if rebirthRate <= 0 then
+        return math.huge
+    end
+    
+    return (rebirthsNeeded / rebirthRate) * 60
+end
+
+local function sendWebhook(content, embeds)
+    if webhookSettings.url == "" or not webhookSettings.url:match("^https://discord%.com/api/webhooks/") then
+        return
+    end
+    
+    local data = {
+        content = content,
+        embeds = embeds or {}
+    }
+    
+    -- Try different request methods for compatibility
+    local success, response = pcall(function()
+        if syn and syn.request then
+            return syn.request({
+                Url = webhookSettings.url,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = HttpService:JSONEncode(data)
+            })
+        elseif http_request then
+            return http_request({
+                Url = webhookSettings.url,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = HttpService:JSONEncode(data)
+            })
+        elseif request then
+            return request({
+                Url = webhookSettings.url,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = HttpService:JSONEncode(data)
+            })
+        end
+    end)
+    
+    if not success then
+        warn("Webhook failed:", response)
+    end
+end
+
+local function sendStatsWebhook()
+    if not webhookSettings.url or webhookSettings.url == "" then return end
+    
+    local fields = {}
+    
+    if webhookSettings.sendStrength then
+        local gained = leaderstats.Strength.Value - sessionStats.startStrength
+        local rate = calculateRate(sessionStats.history.strength, leaderstats.Strength.Value)
+        table.insert(fields, {
+            name = "💪 Strength",
+            value = string.format("Current: %s\nGained: %s\nPer Hour: %s", 
+                formatNumber(leaderstats.Strength.Value),
+                formatNumber(gained),
+                formatNumber(rate * 60)
+            ),
+            inline = true
+        })
+    end
+    
+    if webhookSettings.sendDurability then
+        local gained = player.Durability.Value - sessionStats.startDurability
+        local rate = calculateRate(sessionStats.history.durability, player.Durability.Value)
+        table.insert(fields, {
+            name = "🛡️ Durability",
+            value = string.format("Current: %s\nGained: %s\nPer Hour: %s", 
+                formatNumber(player.Durability.Value),
+                formatNumber(gained),
+                formatNumber(rate * 60)
+            ),
+            inline = true
+        })
+    end
+    
+    if webhookSettings.sendRebirth then
+        local gained = leaderstats.Rebirths.Value - sessionStats.startRebirths
+        local rate = calculateRate(sessionStats.history.rebirths, leaderstats.Rebirths.Value)
+        table.insert(fields, {
+            name = "🔄 Rebirths",
+            value = string.format("Current: %s\nGained: %s\nPer Hour: %.2f", 
+                formatNumber(leaderstats.Rebirths.Value),
+                formatNumber(gained),
+                rate * 60
+            ),
+            inline = true
+        })
+    end
+    
+    if #fields > 0 then
+        sendWebhook(nil, {{
+            title = "📊 Pack Farm Stats Update",
+            color = 0x294a7a,
+            fields = fields,
+            timestamp = os.date("!%Y-%m-%dT%H:%M:%S")
+        }})
+    end
+end
+
+local function deleteStatEffectsGUI()
+    local playerGui = player:WaitForChild("PlayerGui")
+    local statEffects = playerGui:FindFirstChild("statEffectsGui")
+    if statEffects then
+        statEffects:Destroy()
+    end
+end
+
+task.spawn(deleteStatEffectsGUI)
+
+player.CharacterAdded:Connect(function()
+    task.wait(1)
+    deleteStatEffectsGUI()
+end)
+
+initializeStats()
+
+task.spawn(function()
+    while task.wait(2) do
+        recordSnapshot()
+    end
+end)
+
+task.spawn(function()
+    while task.wait(1) do
+        if webhookSettings.url ~= "" and tick() - webhookSettings.lastSent >= webhookSettings.interval then
+            sendStatsWebhook()
+            webhookSettings.lastSent = tick()
+        end
+    end
+end)
+
+local function cachePets()
+    petCache.SwiftSamurai = {}
+    petCache.TribalOverlord = {}
+
+    local petsFolder = player:FindFirstChild("petsFolder")
+    if not petsFolder then 
+        return 
+    end
+
+    local uniqueFolder = petsFolder:FindFirstChild("Unique")
+    if not uniqueFolder then 
+        return 
+    end
+
+    for _, pet in pairs(uniqueFolder:GetChildren()) do
+        if pet.Name == "Swift Samurai" then
+            table.insert(petCache.SwiftSamurai, pet)
+        elseif pet.Name == "Tribal Overlord" then
+            table.insert(petCache.TribalOverlord, pet)
+        end
+    end
+end
+
+local function equipPets(petType, count)
+    local pets = petCache[petType] or {}
+    local maxEquip = math.min(count, #pets)
+    
+    if petType == "SwiftSamurai" then
+        equippedSwifts = {}
+    elseif petType == "TribalOverlord" then
+        equippedTribals = {}
+    end
+
+    for i = 1, maxEquip do
+        local success = pcall(function()
+            equipEvent:FireServer("equipPet", pets[i])
+        end)
+        
+        if success then
+            if petType == "SwiftSamurai" then
+                table.insert(equippedSwifts, pets[i])
+            elseif petType == "TribalOverlord" then
+                table.insert(equippedTribals, pets[i])
+            end
+        end
+        task.wait(0.05)
+    end
+end
+
+local function unequipSpecificPets(petType)
+    local petsToUnequip = petType == "SwiftSamurai" and equippedSwifts or equippedTribals
+    
+    for i = 1, #petsToUnequip do
+        pcall(function()
+            equipEvent:FireServer("unequipPet", petsToUnequip[i])
+        end)
+        task.wait(0.05)
+    end
+    
+    if petType == "SwiftSamurai" then
+        equippedSwifts = {}
+    elseif petType == "TribalOverlord" then
+        equippedTribals = {}
+    end
+end
+
+local function findMachine(name)
+    if machineCache[name] then
+        return machineCache[name]
+    end
+
+    local machinesFolder = Workspace:FindFirstChild("machinesFolder")
+    if machinesFolder then
+        local machine = machinesFolder:FindFirstChild(name)
+        if machine then
+            machineCache[name] = machine
+            return machine
+        end
+    end
+
+    return nil
+end
+
+local function lockPosition(cframe)
+    if posLockConn then
+        posLockConn:Disconnect()
+    end
+    posLockConn = RunService.Heartbeat:Connect(function()
+        if hrp and hum.Sit and machineSeat then
+            hrp.CFrame = cframe
+            hrp.Velocity = Vector3.zero
+            hrp.RotVelocity = Vector3.zero
+            hrp.Anchored = false
+        end
+    end)
+end
+
+local function unlockPosition()
+    if posLockConn then
+        posLockConn:Disconnect()
+        posLockConn = nil
+    end
+end
+
+local function sitOnMachine()
+    local machine = findMachine("Jungle Bar Lift")
+    if not machine or not machine:FindFirstChild("interactSeat") then
+        return false
+    end
+
+    machineSeat = machine.interactSeat
+
+    local normalSeatCFrame = machineSeat.CFrame + Vector3.new(0, 3, 0)
+    hrp.CFrame = normalSeatCFrame
+    hrp.Velocity = Vector3.zero
+    hrp.RotVelocity = Vector3.zero
+
+    pcall(function()
+        ReplicatedStorage.rEvents.machineInteractRemote:InvokeServer("useMachine", machineSeat)
+    end)
+
+    task.wait(0.2)
+
+    if hum.Sit then
+        local safeCFrame = CFrame.new(50000, 50000, 50000)
+        hrp.CFrame = safeCFrame
+        lockPosition(safeCFrame)
+        return true
+    end
+
+    return false
+end
+
+local function farmStrength(target)
+    if strengthConn then
+        strengthConn:Disconnect()
+    end
+    
+    strengthConn = RunService.Heartbeat:Connect(function()
+        if not farmActive or leaderstats.Strength.Value >= target then
+            if strengthConn then
+                strengthConn:Disconnect()
+            end
+            strengthConn = nil
+            return
+        end
+        for i = 1, 12 do
+            pcall(function()
+                muscleEvent:FireServer("rep")
+            end)
+        end
+    end)
+end
+
+local packFolder = packTab:AddFolder("Pack Farm Settings")
+
+packFolder:AddTextBox("Target Rebirths", function(value)
+    local num = tonumber(value)
+    if num and num > leaderstats.Rebirths.Value then
+        targetAmount = num
+    end
+end, {clear = false})
+
+packFolder:AddSwitch("Infinite Mode", function(enabled)
+    infiniteMode = enabled
+end)
+
+packFolder:AddSwitch("Continue Farming Strength After Target", function(enabled)
+    continueAfterTarget = enabled
+end)
+
+local petCountDropdown = packFolder:AddDropdown("Number of Pets to Use", function(selected)
+    petsToUse = tonumber(selected:match("%d+"))
+end)
+
+for i = 1, 8 do
+    petCountDropdown:Add(tostring(i) .. " Pets")
+end
+
+local pingFolder = packTab:AddFolder("Auto Stop Settings")
+
+pingFolder:AddTextBox("Max Ping (ms)", function(value)
+    local num = tonumber(value)
+    if num and num > 0 then
+        maxPing = num
+    end
+end, {clear = false})
+
+pingFolder:AddSwitch("Auto Stop on High Ping", function(enabled)
+    autoPingStop = enabled
+end)
+
+local autoFolder = packTab:AddFolder("Auto Items")
+
+autoFolder:AddSwitch("Auto Egg & Shake", function(enabled)
+    autoEggShake = enabled
+    
+    if enabled then
+        if not eggRunning then
+            eggRunning = true
+            task.spawn(function()
+                while eggRunning and autoEggShake do
+                    local proteinEgg = player.Character:FindFirstChild("Protein Egg") or 
+                                     player.Backpack:FindFirstChild("Protein Egg")
+                    if proteinEgg then
+                        MuscleEvent:FireServer("proteinEgg", proteinEgg)
+                    end
+                    task.wait(1800)
+                end
+                eggRunning = false
+            end)
+        end
+        
+        if not shakeRunning then
+            shakeRunning = true
+            task.spawn(function()
+                while shakeRunning and autoEggShake do
+                    local tropicalShake = player.Character:FindFirstChild("Tropical Shake") or 
+                                        player.Backpack:FindFirstChild("Tropical Shake")
+                    if tropicalShake then
+                        MuscleEvent:FireServer("tropicalShake", tropicalShake)
+                    end
+                    task.wait(900)
+                end
+                shakeRunning = false
+            end)
+        end
+    else
+        eggRunning = false
+        shakeRunning = false
+    end
+end)
+
+local packToggle
+packToggle = packFolder:AddSwitch("Start Pack Farm (Rebirths)", function(enabled)
+    farmActive = enabled
+
+    if enabled then
+        if not infiniteMode and targetAmount <= leaderstats.Rebirths.Value then
+            farmActive = false
+            packToggle:Set(false)
+            return
+        end
+
+        cachePets()
+        
+        if #petCache.SwiftSamurai == 0 then
+            farmActive = false
+            packToggle:Set(false)
+            return
+        end
+        
+        if #petCache.TribalOverlord == 0 then
+            farmActive = false
+            packToggle:Set(false)
+            return
+        end
+        
+        equipPets("SwiftSamurai", petsToUse)
+        
+        if not sitOnMachine() then
+            farmActive = false
+            packToggle:Set(false)
+            return
+        end
+
+        task.spawn(function()
+            while farmActive do
+                if autoPingStop then
+                    local ping = tonumber(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValueString():match("%d+"))
+                    if ping and ping > maxPing then
+                        farmActive = false
+                        packToggle:Set(false)
+                        break
+                    end
+                end
+                
+                local currentRebirths = leaderstats.Rebirths.Value
+
+                if not infiniteMode and currentRebirths >= targetAmount then
+                    if webhookSettings.sendTargetReached and webhookSettings.url ~= "" then
+                        local fields = {
+                            {
+                                name = "🎯 Target Reached!",
+                                value = string.format("Reached %s rebirths", formatNumber(targetAmount)),
+                                inline = false
+                            },
+                            {
+                                name = "💪 Final Strength",
+                                value = formatNumber(leaderstats.Strength.Value),
+                                inline = true
+                            },
+                            {
+                                name = "🛡️ Final Durability",
+                                value = formatNumber(player.Durability.Value),
+                                inline = true
+                            },
+                            {
+                                name = "⏱️ Time Taken",
+                                value = formatTime(tick() - sessionStats.startTime),
+                                inline = true
+                            }
+                        }
+                        
+                        sendWebhook(nil, {{
+                            title = "🏆 Target Reached!",
+                            color = 0x00ff00,
+                            fields = fields,
+                            timestamp = os.date("!%Y-%m-%dT%H:%M:%S")
+                        }})
+                    end
+                    
+                    if continueAfterTarget then
+                        farmStrength(math.huge)
+                        while farmActive do
+                            task.wait(1)
+                        end
+                    else
+                        farmActive = false
+                        packToggle:Set(false)
+                    end
+                    break
+                end
+
+                local rebirthCost = 10000 + (5000 * currentRebirths)
+
+                local goldenRebirth = player.ultimatesFolder and player.ultimatesFolder:FindFirstChild("Golden Rebirth")
+                if goldenRebirth and goldenRebirth.Value then
+                    rebirthCost = math.floor(rebirthCost * (1 - (goldenRebirth.Value * 0.1)))
+                end
+
+                farmStrength(rebirthCost)
+
+                while farmActive and leaderstats.Strength.Value < rebirthCost do
+                    task.wait(0.1)
+                end
+
+                if not farmActive then break end
+
+                if strengthConn then
+                    strengthConn:Disconnect()
+                    strengthConn = nil
+                end
+
+                unequipSpecificPets("SwiftSamurai")
+                task.wait(0.1)
+                equipPets("TribalOverlord", petsToUse)
+                task.wait(0.1)
+
+                local oldRebirths = player.leaderstats.Rebirths.Value
+
+                repeat
+                    pcall(function()
+                        rebirthEvent:InvokeServer("rebirthRequest")
+                    end)
+                    task.wait(0.13)
+                until player.leaderstats.Rebirths.Value > oldRebirths or not farmActive
+
+                if farmActive then
+                    unequipSpecificPets("TribalOverlord")
+                    task.wait(0.1)
+                    equipPets("SwiftSamurai", petsToUse)
+                    task.wait(0.1)
+                    sitOnMachine()
+                end
+            end
+            
+            if strengthConn then
+                strengthConn:Disconnect()
+                strengthConn = nil
+            end
+            unlockPosition()
+            unequipSpecificPets("SwiftSamurai")
+            unequipSpecificPets("TribalOverlord")
+        end)
+    else
+        if strengthConn then
+            strengthConn:Disconnect()
+            strengthConn = nil
+        end
+        unlockPosition()
+        unequipSpecificPets("SwiftSamurai")
+        unequipSpecificPets("TribalOverlord")
+    end
+end)
+
+-- Simple Fast Strength Farm (15 remotes per 0.1 seconds)
+local simpleStrengthFolder = packTab:AddFolder("Simple Fast Strength")
+local simpleStrengthActive = false
+
+local simpleStrengthToggle
+simpleStrengthToggle = simpleStrengthFolder:AddSwitch("Farm Strength (Simple)", function(enabled)
+    simpleStrengthActive = enabled
+
+    if enabled then
+        cachePets()
+        equipPets("SwiftSamurai", 8)
+        
+        if not sitOnMachine() then
+            simpleStrengthActive = false
+            simpleStrengthToggle:Set(false)
+            return
+        end
+
+        task.spawn(function()
+            while simpleStrengthActive do
+                for i = 1, 15 do
+                    if not simpleStrengthActive then break end
+                    pcall(function()
+                        muscleEvent:FireServer("rep")
+                    end)
+                end
+                task.wait(0.1)
+            end
+        end)
+    else
+        simpleStrengthActive = false
+        unlockPosition()
+        unequipSpecificPets("SwiftSamurai")
+    end
+end)
+
+-- Advanced Fast Strength with Optimization
+local strengthFolder = packTab:AddFolder("Advanced Fast Strength")
+
+local strengthFarmActive = false
+local strengthSettings = {
+    threads = 1,
+    tickSpeed = 0,
+    remotesPerTick = 20
+}
+
+strengthFolder:AddTextBox("Threads (1-10)", function(value)
+    local num = tonumber(value)
+    if num and num >= 1 and num <= 10 then
+        strengthSettings.threads = math.floor(num)
+    end
+end, {clear = false})
+
+strengthFolder:AddTextBox("Tick Speed (0-1 seconds)", function(value)
+    local num = tonumber(value)
+    if num and num >= 0 and num <= 1 then
+        strengthSettings.tickSpeed = num
+    end
+end, {clear = false})
+
+strengthFolder:AddTextBox("Remotes Per Tick (1-50)", function(value)
+    local num = tonumber(value)
+    if num and num >= 1 and num <= 50 then
+        strengthSettings.remotesPerTick = math.floor(num)
+    end
+end, {clear = false})
+
+local strengthToggle
+strengthToggle = strengthFolder:AddSwitch("Farm Strength (Advanced)", function(enabled)
+    strengthFarmActive = enabled
+
+    if enabled then
+        cachePets()
+        equipPets("SwiftSamurai", 8)
+        
+        if not sitOnMachine() then
+            strengthFarmActive = false
+            strengthToggle:Set(false)
+            return
+        end
+
+        for threadNum = 1, strengthSettings.threads do
+            task.spawn(function()
+                while strengthFarmActive do
+                    for i = 1, strengthSettings.remotesPerTick do
+                        if not strengthFarmActive then break end
+                        pcall(function()
+                            muscleEvent:FireServer("rep")
+                        end)
+                    end
+                    
+                    if strengthSettings.tickSpeed > 0 then
+                        task.wait(strengthSettings.tickSpeed)
+                    else
+                        RunService.Heartbeat:Wait()
+                    end
+                end
+            end)
+        end
+    else
+        strengthFarmActive = false
+        unlockPosition()
+        unequipSpecificPets("SwiftSamurai")
+    end
+end)
+
+local currentFolder = statsTab:AddFolder("Current Stats")
+local gainedFolder = statsTab:AddFolder("Gained This Session")
+local ratesFolder = statsTab:AddFolder("Rates")
+local etaFolder = statsTab:AddFolder("Time to Target")
+local performanceFolder = statsTab:AddFolder("Performance")
+
+local labels = {
+    current = {},
+    gained = {},
+    rates = {}
+}
+
+labels.current.strength = currentFolder:AddLabel("Strength: 0")
+labels.current.durability = currentFolder:AddLabel("Durability: 0")
+labels.current.rebirths = currentFolder:AddLabel("Rebirths: 0")
+
+labels.gained.strength = gainedFolder:AddLabel("Strength: 0")
+labels.gained.durability = gainedFolder:AddLabel("Durability: 0")
+labels.gained.rebirths = gainedFolder:AddLabel("Rebirths: 0")
+
+labels.rates.strength = ratesFolder:AddLabel("Strength: Calculating...")
+labels.rates.durability = ratesFolder:AddLabel("Durability: Calculating...")
+labels.rates.rebirths = ratesFolder:AddLabel("Rebirths: Calculating...")
+
+local etaLabel = etaFolder:AddLabel("Time Until Target: Calculating...")
+
+local fpsLabel = performanceFolder:AddLabel("FPS: Calculating...")
+local pingLabel = performanceFolder:AddLabel("Ping: Calculating...")
+
+gainedFolder:AddButton("Reset Session Stats", function()
+    initializeStats()
+end)
+
+task.spawn(function()
+    local lastUpdate = tick()
+    local frames = 0
+
+    RunService.Heartbeat:Connect(function()
+        frames = frames + 1
+
+        if tick() - lastUpdate >= 1 then
+            local fps = frames
+            fpsLabel.Text = "FPS: " .. tostring(fps)
+            frames = 0
+            lastUpdate = tick()
+        end
+    end)
+end)
+
+task.spawn(function()
+    while task.wait(2) do
+        local ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValueString()
+        pingLabel.Text = "Ping: " .. ping
+    end
+end)
+
+task.spawn(function()
+    while task.wait(1) do
+        labels.current.strength.Text = "Strength: " .. formatNumber(leaderstats.Strength.Value)
+        labels.current.durability.Text = "Durability: " .. formatNumber(player.Durability.Value)
+        labels.current.rebirths.Text = "Rebirths: " .. formatNumber(leaderstats.Rebirths.Value)
+        
+        local strengthGained = leaderstats.Strength.Value - sessionStats.startStrength
+        local durabilityGained = player.Durability.Value - sessionStats.startDurability
+        local rebirthsGained = leaderstats.Rebirths.Value - sessionStats.startRebirths
+        
+        labels.gained.strength.Text = "Strength: " .. formatNumber(math.max(0, strengthGained))
+        labels.gained.durability.Text = "Durability: " .. formatNumber(math.max(0, durabilityGained))
+        labels.gained.rebirths.Text = "Rebirths: " .. formatNumber(math.max(0, rebirthsGained))
+        
+        local strRate = calculateRate(sessionStats.history.strength, leaderstats.Strength.Value)
+        local durRate = calculateRate(sessionStats.history.durability, player.Durability.Value)
+        local rebRate = calculateRate(sessionStats.history.rebirths, leaderstats.Rebirths.Value)
+        
+        if strRate > 0 then
+            labels.rates.strength.Text = string.format(
+                "Strength: /Min: %s | /Hour: %s | /Day: %s | /Week: %s",
+                formatNumber(strRate),
+                formatNumber(strRate * 60),
+                formatNumber(strRate * 1440),
+                formatNumber(strRate * 10080)
+            )
+        else
+            labels.rates.strength.Text = "Strength: Calculating..."
+        end
+        
+        if durRate > 0 then
+            labels.rates.durability.Text = string.format(
+                "Durability: /Min: %s | /Hour: %s | /Day: %s | /Week: %s",
+                formatNumber(durRate),
+                formatNumber(durRate * 60),
+                formatNumber(durRate * 1440),
+                formatNumber(durRate * 10080)
+            )
+        else
+            labels.rates.durability.Text = "Durability: Calculating..."
+        end
+        
+        if rebRate > 0 then
+            labels.rates.rebirths.Text = string.format(
+                "Rebirths: /Min: %.2f | /Hour: %.2f | /Day: %.2f | /Week: %.2f",
+                rebRate,
+                rebRate * 60,
+                rebRate * 1440,
+                rebRate * 10080
+            )
+        else
+            labels.rates.rebirths.Text = "Rebirths: Calculating..."
+        end
+        
+        if not infiniteMode then
+            local timeToTarget = calculateTimeToTarget()
+            if leaderstats.Rebirths.Value >= targetAmount then
+                etaLabel.Text = "✅ Target Reached!"
+            elseif timeToTarget == math.huge then
+                etaLabel.Text = "Time Until Target: Calculating..."
+            else
+                etaLabel.Text = "Time Until Target: " .. formatTime(timeToTarget)
+            end
+        else
+            etaLabel.Text = "Time Until Target: N/A (Infinite Mode)"
+        end
+    end
+end)
+
+local webhookFolder = webhookTab:AddFolder("Webhook Settings")
+
+webhookFolder:AddTextBox("Webhook URL", function(value)
+    webhookSettings.url = value
+end, {clear = false})
+
+webhookFolder:AddTextBox("Send Interval (seconds)", function(value)
+    local num = tonumber(value)
+    if num and num >= 60 then
+        webhookSettings.interval = num
+    end
+end, {clear = false})
+
+local toggleFolder = webhookTab:AddFolder("What to Send")
+
+toggleFolder:AddSwitch("Send Strength Stats", function(enabled)
+    webhookSettings.sendStrength = enabled
+end)
+
+toggleFolder:AddSwitch("Send Durability Stats", function(enabled)
+    webhookSettings.sendDurability = enabled
+end)
+
+toggleFolder:AddSwitch("Send Rebirth Stats", function(enabled)
+    webhookSettings.sendRebirth = enabled
+end)
+
+toggleFolder:AddSwitch("Send Target Reached Notification", function(enabled)
+    webhookSettings.sendTargetReached = enabled
+end)
+
+webhookFolder:AddButton("Test Webhook", function()
+    if webhookSettings.url == "" then
+        return
+    end
+    
+    sendWebhook(nil, {{
+        title = "✅ Webhook Test",
+        description = "Your webhook is working correctly!",
+        color = 0x00ff00,
+        timestamp = os.date("!%Y-%m-%dT%H:%M:%S")
+    }})
+end)
