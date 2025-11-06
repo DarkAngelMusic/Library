@@ -1,0 +1,182 @@
+return function()
+    local UIS = game:GetService("UserInputService")
+    local TS = game:GetService("TweenService")
+    local RS = game:GetService("RunService")
+    local CG = game:GetService("CoreGui")
+    local httpEnabled = pcall(game.HttpGet, game, "https://google.com")
+
+    local function drag(frame, handle)
+        local dragging = false
+        local dragStart, startPos
+        handle.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                dragStart = input.Position
+                startPos = frame.Position
+            end
+        end)
+        UIS.InputChanged:Connect(function(input)
+            if dragging then
+                local delta = input.Position - dragStart
+                frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            end
+        end)
+        handle.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+            end
+        end)
+    end
+
+    local function notify(t)
+        game.StarterGui:SetCore("SendNotification",{Title="Key System",Text=t,Duration=3})
+    end
+
+    local function postWebhook(url, data)
+        if url == "" then return end
+        local encoded = game:GetService("HttpService"):JSONEncode(data)
+        pcall(function()
+            request = request or http_request or (syn and syn.request)
+            if request then request({Url=url,Method="POST",Headers={["Content-Type"]="application/json"},Body=encoded}) end
+        end)
+    end
+
+    local function openUI(config)
+        local savedKeyFile = (config.Folder or "KeySystem").."/"..(config.File or "keys.txt")
+        if writefolder and not isfolder(config.Folder or "KeySystem") then makefolder(config.Folder or "KeySystem") end
+        if writefile and not isfile(savedKeyFile) then writefile(savedKeyFile,"") end
+
+        local function readKeys()
+            if isfile(savedKeyFile) then
+                return string.split(readfile(savedKeyFile),"\n")
+            end
+            return {}
+        end
+        local function saveKey(k)
+            local t = readKeys()
+            for _,v in ipairs(t) do if v == k then return end end
+            t[#t+1] = k
+            writefile(savedKeyFile,table.concat(t,"\n"))
+        end
+
+        local junkie = nil
+        pcall(function()
+            junkie = loadstring(game:HttpGet("https://junkie-development.de/sdk/JunkieKeySystem.lua"))()
+        end)
+
+        local screen = Instance.new("ScreenGui", CG)
+        screen.Name = "KeySystemUI_"..math.random(1000)
+
+        local main = Instance.new("Frame", screen)
+        main.AnchorPoint = Vector2.new(.5,.5)
+        main.Position = UDim2.new(.5,0,.5,0)
+        main.Size = UDim2.new(0,420,0,320)
+        main.BackgroundColor3 = Color3.fromRGB(25,25,25)
+
+        local corner = Instance.new("UICorner", main)
+        corner.CornerRadius = UDim.new(0,12)
+
+        local header = Instance.new("Frame", main)
+        header.Size = UDim2.new(1,0,0,40)
+        header.BackgroundColor3 = Color3.fromRGB(15,15,15)
+        Instance.new("UICorner", header).CornerRadius = UDim.new(0,12)
+
+        local title = Instance.new("TextLabel", header)
+        title.Size = UDim2.new(1,-10,1,0)
+        title.Position = UDim2.new(0,10,0,0)
+        title.BackgroundTransparency = 1
+        title.Text = config.Title
+        title.Font = Enum.Font.GothamBold
+        title.TextColor3 = Color3.new(1,1,1)
+        title.TextSize = 16
+        title.TextXAlignment = Enum.TextXAlignment.Left
+
+        drag(main, header)
+
+        if config.Background then
+            if config.Background.Type == "Blur" then
+                local blur = Instance.new("BlurEffect", game.Lighting)
+                blur.Size = config.Background.BlurAmount or 10
+            elseif config.Background.Type == "Image" then
+                main.BackgroundTransparency = 1
+                local bg = Instance.new("ImageLabel", main)
+                bg.Size = UDim2.new(1,0,1,0)
+                bg.Image = config.Background.Image
+                bg.ZIndex = 0
+            elseif config.Background.Type == "Gradient" then
+                local g = Instance.new("UIGradient", main)
+                g.Color = ColorSequence.new(config.Color, Color3.fromRGB(10,10,10))
+            end
+        end
+
+        local desc = Instance.new("TextLabel", main)
+        desc.Size = UDim2.new(1,-20,0,40)
+        desc.Position = UDim2.new(0,10,0,55)
+        desc.BackgroundTransparency = 1
+        desc.Text = config.Description
+        desc.Font = Enum.Font.Gotham
+        desc.TextSize = 12
+        desc.TextColor3 = Color3.fromRGB(200,200,200)
+        desc.TextWrapped = true
+
+        local keyBox = Instance.new("TextBox", main)
+        keyBox.Size = UDim2.new(1,-20,0,38)
+        keyBox.Position = UDim2.new(0,10,0,110)
+        keyBox.BackgroundColor3 = Color3.fromRGB(45,45,45)
+        keyBox.PlaceholderText = "Enter key..."
+        keyBox.Text = ""
+        keyBox.TextColor3 = Color3.new(1,1,1)
+        keyBox.Font = Enum.Font.Gotham
+        keyBox.TextSize = 12
+        Instance.new("UICorner", keyBox).CornerRadius = UDim.new(0,6)
+
+        local checkBtn = Instance.new("TextButton", main)
+        checkBtn.Size = UDim2.new(1,-20,0,38)
+        checkBtn.Position = UDim2.new(0,10,0,160)
+        checkBtn.BackgroundColor3 = config.Color
+        checkBtn.Text = "Check Key"
+        checkBtn.TextColor3 = Color3.new(1,1,1)
+        checkBtn.Font = Enum.Font.GothamBold
+        checkBtn.TextSize = 13
+        Instance.new("UICorner", checkBtn).CornerRadius = UDim.new(0,6)
+
+        local function verify(k)
+            if junkie then
+                for _,p in ipairs(config.Providers) do
+                    if junkie.verifyKey(config.Api, k, config.Service, p.Name) then
+                        return true
+                    end
+                end
+                return false
+            end
+            return true
+        end
+
+        local function log(key)
+            local data = {
+                username = config.Logging.Username and game.Players.LocalPlayer.Name or nil,
+                hwid = config.Logging.Hwid and (gethwid and gethwid() or false) or nil,
+                ip = config.Logging.Ip and (httpEnabled and game:HttpGet("https://api.ipify.org") or "unknown") or nil,
+                executor = identifyexecutor and identifyexecutor() or "Unknown",
+                place = game.PlaceId,
+                key = key
+            }
+            postWebhook(config.Webhook, data)
+        end
+
+        checkBtn.MouseButton1Click:Connect(function()
+            local k = keyBox.Text:gsub("%s+","")
+            if verify(k) then
+                saveKey(k)
+                log(k)
+                notify("Key valid.")
+                screen:Destroy()
+                getgenv().KeySystemValidated = true
+            else
+                notify("Invalid key.")
+            end
+        end)
+    end
+
+    return {Open = openUI}
+end
