@@ -1,0 +1,1118 @@
+Config = {
+    api = "ce5dc837-ae59-4280-87d5-4d10b9641cc9",  -- Replace with your Junkie API key (UUID format)
+    service = "Lurnai Hub
+",  -- e.g., "MyHub" - Must match your Junkie service name
+    discordLink = "https://discord.gg/",  -- Your Discord server invite
+    logoAssetId = "rbxassetid://YOUR_LOGO_ID",
+    providers = {
+        {name = "Basic", durationHours = 8, displayName = "8 Hours"},  -- Customize provider names/durations
+        {name = "Premium", durationHours = 20, displayName = "20 Hours"}
+        -- Add more providers as needed for your key tiers
+    }
+}
+
+-- Main function: Load your scripts here after key validation
+local function main()
+    -- TODO: Add your hub's script loading logic
+    -- Example:
+    -- if game.PlaceId == 123456789 then  -- Game-specific check
+    --     loadstring(game:HttpGet("https://your-domain.com/scripts/game1.lua"))()
+    -- else
+    --     loadstring(game:HttpGet("https://your-domain.com/loader.lua"))()
+    -- end
+    print("[Hub Name] loaded successfully! 🚀")
+    -- Place your actual loader code here
+end
+
+-- Services (Required for UI, tweens, input, etc.)
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+
+-- Color palette for UI theming (Orange/Black theme - Customize as needed)
+local Colors = {
+    Orange = Color3.fromRGB(255, 140, 0),
+    DarkOrange = Color3.fromRGB(200, 100, 0),
+    Black = Color3.fromRGB(25, 25, 25),
+    DarkBlack = Color3.fromRGB(15, 15, 15),
+    LightGray = Color3.fromRGB(60, 60, 60),
+    MediumGray = Color3.fromRGB(50, 50, 50),
+    White = Color3.fromRGB(255, 255, 255),
+    Error = Color3.fromRGB(255, 70, 70),
+    Success = Color3.fromRGB(80, 220, 120)
+}
+
+-- Detect if running on mobile for UI adjustments
+local isMobile = UserInputService:GetPlatform() == Enum.Platform.IOS or UserInputService:GetPlatform() == Enum.Platform.Android
+
+-- Local storage paths (Uses executor's file system - Customize if needed)
+local folderPath = "KeySystem"  -- Folder for storing keys
+local filePath = folderPath .. "/keys.txt"  -- File for saving valid keys
+
+-- Ensure storage folder and file exist (Compatible with most executors)
+if writefolder and not isfolder(folderPath) then
+    makefolder(folderPath)
+end
+
+if writefile and not isfile(filePath) then
+    writefile(filePath, "")
+end
+
+-- Utility: Create UI objects with properties (Reduces code repetition)
+local function CreateObject(class, props)
+    local obj = Instance.new(class)
+    for prop, value in pairs(props) do
+        if prop ~= "Parent" then
+            obj[prop] = value
+        end
+    end
+    if props.Parent then
+        obj.Parent = props.Parent
+    end
+    return obj
+end
+
+-- Utility: Smooth tween animations for UI elements
+local function SmoothTween(obj, time, properties, style)
+    style = style or Enum.EasingStyle.Quad
+    local tween = TweenService:Create(obj, TweenInfo.new(time, style, Enum.EasingDirection.Out), properties)
+    tween:Play()
+    return tween
+end
+
+-- Utility: Show temporary status messages in the UI
+local function ShowStatus(label, text, color)
+    label.Text = text
+    label.TextColor3 = color
+    label.BackgroundTransparency = 1
+    label.TextTransparency = 1
+    label.Position = UDim2.new(0, 0, 0, 200)
+    label.Size = UDim2.new(1, 0, 0, 25)
+    SmoothTween(label, 0.3, {TextTransparency = 0, Position = UDim2.new(0, 0, 0, 150)}, Enum.EasingStyle.Back)
+    task.spawn(function()
+        task.wait(3)
+        if label.Text == text then
+            SmoothTween(label, 0.5, {TextTransparency = 1, Position = UDim2.new(0, 0, 0, 200)}, Enum.EasingStyle.Quad)
+        end
+    end)
+end
+
+-- Utility: Create slide-in notifications (Success/Error/Info types)
+local function createNotification(text, notificationType)
+    local NotificationGui = CreateObject("ScreenGui", {
+        Name = "Notification",
+        Parent = CoreGui,
+        ResetOnSpawn = false,
+        DisplayOrder = 1000
+    })
+    
+    local NotificationFrame = CreateObject("Frame", {
+        Parent = NotificationGui,
+        BackgroundColor3 = notificationType == "success" and Colors.Success or (notificationType == "error" and Colors.Error or Colors.Orange),
+        BorderSizePixel = 0,
+        Size = UDim2.new(0, 280, 0, 45),
+        Position = UDim2.new(1, -290, 0, 20),
+        ZIndex = 1001,
+        ClipsDescendants = true
+    })
+    CreateObject("UICorner", {Parent = NotificationFrame, CornerRadius = UDim.new(0, 8)})
+    
+    CreateObject("UIGradient", {
+        Parent = NotificationFrame,
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, notificationType == "success" and Colors.Success or (notificationType == "error" and Colors.Error or Colors.Orange)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
+        }),
+        Rotation = 90
+    })
+    
+    local NotificationText = CreateObject("TextLabel", {
+        Parent = NotificationFrame,
+        BackgroundTransparency = 1,
+        Text = text,
+        Font = Enum.Font.GothamBold,
+        TextSize = 11,
+        TextColor3 = Colors.White,
+        Size = UDim2.new(1, 0, 1, 0),
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 1002
+    })
+    CreateObject("UIPadding", {Parent = NotificationText, PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8)})
+    
+    NotificationFrame.Position = UDim2.new(1, 10, 0, 20)
+    SmoothTween(NotificationFrame, 0.4, {Position = UDim2.new(1, -290, 0, 20)}, Enum.EasingStyle.Back)
+    
+    task.spawn(function()
+        task.wait(3)
+        SmoothTween(NotificationFrame, 0.4, {Position = UDim2.new(1, 10, 0, 20)}, Enum.EasingStyle.Back)
+        task.wait(0.4)
+        NotificationGui:Destroy()
+    end)
+end
+
+-- Load Junkie Key System from remote (Handles HTTP errors gracefully)
+local JunkieKeySystem = nil
+local httpEnabled = false
+pcall(function()
+    local httpSuccess, httpResult = pcall(function()
+        return game:HttpGet("https://junkie-development.de/sdk/JunkieKeySystem.lua")
+    end)
+    
+    if httpSuccess and httpResult and httpResult ~= "" then
+        httpEnabled = true
+        local loadSuccess, loadedFunc = pcall(loadstring, httpResult)
+        if loadSuccess and type(loadedFunc) == "function" then
+            local callSuccess, keySystem = pcall(loadedFunc)
+            if callSuccess and keySystem then
+                JunkieKeySystem = keySystem
+            end
+        end
+    end
+end)
+
+local keySystemFailed = (JunkieKeySystem == nil)  -- Flag for fallback mode (e.g., no HTTP)
+
+-- File I/O: Read saved keys from local storage
+local function readKeys()
+    local keys = {}
+    if isfile(filePath) then
+        for line in readfile(filePath):gmatch("[^\r\n]+") do
+            if line ~= "" then
+                table.insert(keys, line)
+            end
+        end
+    end
+    return keys
+end
+
+-- File I/O: Save valid keys to local storage
+local function saveKeys(keysTable)
+    if writefile then
+        writefile(filePath, table.concat(keysTable, "\n"))
+    end
+end
+
+-- Core: Validate a user-entered key against Junkie API
+local function validateKey(userKey)
+    if not httpEnabled or not JunkieKeySystem then
+        return false  -- Fallback: Always accept if API unavailable
+    end
+    local success, result = pcall(function()
+        if not userKey or userKey == "" then return false end
+        
+        for _, provider in ipairs(Config.providers) do
+            local isValid = JunkieKeySystem.verifyKey(Config.api, userKey, Config.service, provider.name)
+            if isValid then
+                return true
+            end
+        end
+        return false
+    end)
+    
+    return success and result or false
+end
+
+-- Core: Generate a purchase/redeem link for a specific provider
+local function generateLink(providerName)
+    if not httpEnabled or not JunkieKeySystem then
+        return nil
+    end
+    local success, link = pcall(function()
+        return JunkieKeySystem.getLink(Config.api, providerName, Config.service)
+    end)
+    return success and link or nil
+end
+
+-- Startup: Try existing saved keys for auto-login
+local function tryKeys(callback)
+    if not httpEnabled or not JunkieKeySystem then
+        callback(false, nil)  -- No auto-login if API down
+        return
+    end
+    local keys = readKeys()
+    local validKey = nil
+    for i, key in ipairs(keys) do
+        if validateKey(key) then
+            validKey = key
+            break
+        else
+            keys[i] = nil  -- Remove invalid keys
+        end
+    end
+    saveKeys(keys)
+    callback(validKey ~= nil, validKey)
+end
+
+-- UI: Create animated loading screen (Shows on script start)
+local function createLoadingScreen()
+    local ScreenGui = CreateObject("ScreenGui", {
+        Name = "LoadingScreen",
+        Parent = CoreGui,
+        ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    })
+    
+    local Background = CreateObject("Frame", {
+        Parent = ScreenGui,
+        BackgroundColor3 = Colors.Black,
+        BackgroundTransparency = 0.3,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 1, 0)
+    })
+    
+    CreateObject("UIGradient", {
+        Parent = Background,
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Colors.DarkBlack),
+            ColorSequenceKeypoint.new(1, Colors.Black)
+        }),
+        Rotation = 45,
+        Transparency = NumberSequence.new(0.4)
+    })
+    
+    local Container = CreateObject("Frame", {
+        Parent = Background,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0, 200, 0, 200),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5)
+    })
+    
+    local Logo = CreateObject("ImageLabel", {
+        Parent = Container,
+        BackgroundTransparency = 1,
+        Image = Config.logoAssetId,
+        Size = UDim2.new(0, 100, 0, 100),
+        Position = UDim2.new(0.5, 0, 0.3, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5)
+    })
+    CreateObject("UICorner", {Parent = Logo, CornerRadius = UDim.new(0, 12)})
+    
+    local RotatingBorder = CreateObject("Frame", {
+        Parent = Container,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0, 110, 0, 110),
+        Position = UDim2.new(0.5, 0, 0.3, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BorderSizePixel = 0
+    })
+    
+    CreateObject("UIStroke", {
+        Parent = RotatingBorder,
+        Color = Colors.Orange,
+        Thickness = 2,
+        Transparency = 0.3
+    })
+    CreateObject("UICorner", {Parent = RotatingBorder, CornerRadius = UDim.new(0, 12)})
+    
+    CreateObject("TextLabel", {
+        Parent = Container,
+        BackgroundTransparency = 1,
+        Text = "[Hub Name]",  -- Replace with your hub name
+        Font = Enum.Font.GothamBold,
+        TextSize = 20,
+        TextColor3 = Colors.White,
+        Position = UDim2.new(0.5, 0, 0.65, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Size = UDim2.new(1, 0, 0, 30)
+    })
+    
+    local LoadingSubtext = CreateObject("TextLabel", {
+        Parent = Container,
+        BackgroundTransparency = 1,
+        Text = "Initializing.",
+        Font = Enum.Font.Gotham,
+        TextSize = 12,
+        TextColor3 = Colors.Orange,
+        Position = UDim2.new(0.5, 0, 0.8, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Size = UDim2.new(1, 0, 0, 20)
+    })
+    
+    -- Animations: Dots and logo pulsing
+    local dots = {".", "..", "..."}
+    local dotIndex = 1
+    task.spawn(function()
+        while ScreenGui.Parent do
+            LoadingSubtext.Text = "Initializing" .. dots[dotIndex]
+            dotIndex = (dotIndex % #dots) + 1
+            task.wait(0.5)
+        end
+    end)
+    
+    local rotation = 0
+    local conn
+    conn = RunService.RenderStepped:Connect(function()
+        if ScreenGui.Parent then
+            rotation = (rotation + 2) % 360
+            RotatingBorder.Rotation = rotation
+        else
+            conn:Disconnect()
+        end
+    end)
+    
+    local pulseSize = 100
+    local pulseDirection = 1
+    task.spawn(function()
+        while ScreenGui.Parent do
+            pulseSize = pulseSize + (pulseDirection * 0.8)
+            if pulseSize >= 108 or pulseSize <= 92 then
+                pulseDirection = -pulseDirection
+            end
+            Logo.Size = UDim2.new(0, pulseSize, 0, pulseSize)
+            task.wait(0.02)
+        end
+    end)
+    
+    return ScreenGui, Background
+end
+
+-- UI: Create a spinning loader (Used during key verification)
+local function createSpinner(parent)
+    local spinner = CreateObject("Frame", {
+        Parent = parent,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0, 30, 0, 30),
+        Position = UDim2.new(0.5, 0, 0, 150),
+        AnchorPoint = Vector2.new(0.5, 0),
+        ZIndex = 10
+    })
+    
+    -- Create 8 rotating dots for spinner effect
+    for i = 1, 8 do
+        local dot = CreateObject("Frame", {
+            Parent = spinner,
+            BackgroundColor3 = Colors.Orange,
+            BorderSizePixel = 0,
+            Size = UDim2.new(0, 4, 0, 10),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            AnchorPoint = Vector2.new(0.5, 1)
+        })
+        CreateObject("UICorner", {Parent = dot, CornerRadius = UDim.new(1, 0)})
+        dot.Rotation = (i - 1) * 45
+    end
+    
+    local rotation = 0
+    local conn
+    conn = RunService.RenderStepped:Connect(function()
+        if spinner.Parent then
+            rotation = (rotation + 5) % 360
+            spinner.Rotation = rotation
+        else
+            conn:Disconnect()
+        end
+    end)
+    
+    return spinner
+end
+
+-- Track existing UI to prevent duplicates
+local existingUI = nil
+
+-- Main UI: Create the key entry interface (Draggable window with buttons)
+local function createKeySystemUI()
+    if existingUI and existingUI.Parent then
+        existingUI:Destroy()
+    end
+    
+    local ScreenGui = CreateObject("ScreenGui", {
+        Name = "KeySystemUI",  -- Generic name for open-source
+        Parent = CoreGui,
+        ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    })
+    
+    -- UI Dimensions (Responsive for mobile/desktop)
+    local uiWidth = isMobile and 320 or 420
+    local uiHeight = 320
+    local headerHeight = 45
+    
+    local MainContainer = CreateObject("Frame", {
+        Name = "MainContainer",
+        Parent = ScreenGui,
+        BackgroundColor3 = Colors.Black,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Size = UDim2.new(0, uiWidth, 0, uiHeight),
+        ClipsDescendants = true
+    })
+    CreateObject("UICorner", {Parent = MainContainer, CornerRadius = UDim.new(0, 16)})
+    
+    -- Outer stroke for shadow effect
+    CreateObject("UIStroke", {
+        Parent = MainContainer,
+        Color = Color3.fromRGB(0, 0, 0),
+        Thickness = 4,
+        Transparency = 0.7
+    })
+    
+    -- Gradient background for depth
+    CreateObject("UIGradient", {
+        Parent = MainContainer,
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Colors.Black),
+            ColorSequenceKeypoint.new(1, Colors.DarkBlack)
+        }),
+        Rotation = 45
+    })
+    
+    -- Header bar (Logo, title, buttons)
+    local HeaderContainer = CreateObject("Frame", {
+        Parent = MainContainer,
+        BackgroundColor3 = Colors.DarkBlack,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, headerHeight),
+        Position = UDim2.new(0, 0, 0, 0),
+        ZIndex = 10
+    })
+    CreateObject("UICorner", {Parent = HeaderContainer, CornerRadius = UDim.new(0, 16)})
+    
+    -- Logo icon in header
+    local HeaderIcon = CreateObject("ImageLabel", {
+        Parent = HeaderContainer,
+        BackgroundTransparency = 1,
+        Image = Config.logoAssetId,
+        Size = UDim2.new(0, 28, 0, 28),
+        Position = UDim2.new(0, 10, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        ZIndex = 10,
+        ScaleType = Enum.ScaleType.Fit
+    })
+    CreateObject("UICorner", {Parent = HeaderIcon, CornerRadius = UDim.new(0, 6)})
+    
+    -- Hub title text
+    local HeaderText = CreateObject("TextLabel", {
+        Parent = HeaderContainer,
+        BackgroundTransparency = 1,
+        Text = "[Hub Name]",  -- Replace with your hub name
+        Font = Enum.Font.GothamBold,
+        TextSize = 16,
+        TextColor3 = Colors.White,
+        Position = UDim2.new(0, 45, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        Size = UDim2.new(0.5, 0, 0, 25),
+        ZIndex = 10
+    })
+    
+    -- Discord button in header (Copies invite link)
+    local DiscordBtn = CreateObject("TextButton", {
+        Parent = HeaderContainer,
+        BackgroundColor3 = Colors.Orange,
+        Text = "Join Discord",
+        Font = Enum.Font.GothamBold,
+        TextSize = 10,
+        TextColor3 = Colors.White,
+        Size = UDim2.new(0, 85, 0, 28),
+        Position = UDim2.new(1, -170, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        AutoButtonColor = false,
+        BorderSizePixel = 0,
+        ZIndex = 10
+    })
+    CreateObject("UICorner", {Parent = DiscordBtn, CornerRadius = UDim.new(0, 6)})
+    
+    -- Discord button animations and logic
+    DiscordBtn.MouseEnter:Connect(function()
+        SmoothTween(DiscordBtn, 0.2, {BackgroundColor3 = Colors.DarkOrange}, Enum.EasingStyle.Quart)
+        SmoothTween(DiscordBtn, 0.2, {Size = UDim2.new(0, 88, 0, 30)}, Enum.EasingStyle.Quart)
+    end)
+    
+    DiscordBtn.MouseLeave:Connect(function()
+        SmoothTween(DiscordBtn, 0.2, {BackgroundColor3 = Colors.Orange}, Enum.EasingStyle.Quart)
+        SmoothTween(DiscordBtn, 0.2, {Size = UDim2.new(0, 85, 0, 28)}, Enum.EasingStyle.Quart)
+    end)
+    
+    DiscordBtn.MouseButton1Down:Connect(function()
+        SmoothTween(DiscordBtn, 0.1, {Size = UDim2.new(0, 82, 0, 26)}, Enum.EasingStyle.Quad)
+    end)
+    
+    DiscordBtn.MouseButton1Up:Connect(function()
+        SmoothTween(DiscordBtn, 0.1, {Size = UDim2.new(0, 85, 0, 28)}, Enum.EasingStyle.Quad)
+    end)
+    
+    DiscordBtn.MouseButton1Click:Connect(function()
+        pcall(function()
+            if setclipboard then
+                setclipboard(Config.discordLink)
+                createNotification("Discord link copied to clipboard!", "success")
+            else
+                createNotification("Copy this link manually: " .. Config.discordLink, "info")
+            end
+        end)
+    end)
+    
+    -- Minimize button (Toggles window size)
+    local MinimizeBtn = CreateObject("TextButton", {
+        Parent = HeaderContainer,
+        BackgroundColor3 = Colors.DarkBlack,
+        Text = "−",
+        Font = Enum.Font.GothamBold,
+        TextSize = 14,
+        TextColor3 = Colors.White,
+        Size = UDim2.new(0, 35, 0, 28),
+        Position = UDim2.new(1, -80, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        AutoButtonColor = false,
+        BorderSizePixel = 0,
+        ZIndex = 10
+    })
+    CreateObject("UICorner", {Parent = MinimizeBtn, CornerRadius = UDim.new(0, 6)})
+    
+    -- Minimize animations
+    MinimizeBtn.MouseEnter:Connect(function()
+        SmoothTween(MinimizeBtn, 0.2, {BackgroundColor3 = Colors.Orange}, Enum.EasingStyle.Quart)
+        SmoothTween(MinimizeBtn, 0.2, {Size = UDim2.new(0, 38, 0, 30)}, Enum.EasingStyle.Quart)
+    end)
+    
+    MinimizeBtn.MouseLeave:Connect(function()
+        SmoothTween(MinimizeBtn, 0.2, {BackgroundColor3 = Colors.DarkBlack}, Enum.EasingStyle.Quart)
+        SmoothTween(MinimizeBtn, 0.2, {Size = UDim2.new(0, 35, 0, 28)}, Enum.EasingStyle.Quart)
+    end)
+    
+    MinimizeBtn.MouseButton1Down:Connect(function()
+        SmoothTween(MinimizeBtn, 0.1, {Size = UDim2.new(0, 32, 0, 26)}, Enum.EasingStyle.Quad)
+    end)
+    
+    MinimizeBtn.MouseButton1Up:Connect(function()
+        SmoothTween(MinimizeBtn, 0.1, {Size = UDim2.new(0, 35, 0, 28)}, Enum.EasingStyle.Quad)
+    end)
+    
+    local isMinimized = false
+    MinimizeBtn.MouseButton1Click:Connect(function()
+        if not isMinimized then
+            SmoothTween(MainContainer, 0.3, {Size = UDim2.new(0, uiWidth, 0, headerHeight)}, Enum.EasingStyle.Quart)
+            isMinimized = true
+        else
+            SmoothTween(MainContainer, 0.3, {Size = UDim2.new(0, uiWidth, 0, uiHeight)}, Enum.EasingStyle.Quart)
+            isMinimized = false
+        end
+    end)
+    
+    -- Close button (Hides UI without loading scripts)
+    local CloseBtn = CreateObject("TextButton", {
+        Parent = HeaderContainer,
+        BackgroundColor3 = Colors.DarkBlack,
+        Text = "✕",
+        Font = Enum.Font.GothamBold,
+        TextSize = 14,
+        TextColor3 = Colors.Error,
+        Size = UDim2.new(0, 35, 0, 28),
+        Position = UDim2.new(1, -40, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        AutoButtonColor = false,
+        BorderSizePixel = 0,
+        ZIndex = 10
+    })
+    CreateObject("UICorner", {Parent = CloseBtn, CornerRadius = UDim.new(0, 6)})
+    
+    -- Close animations
+    CloseBtn.MouseEnter:Connect(function()
+        SmoothTween(CloseBtn, 0.2, {BackgroundColor3 = Colors.Error}, Enum.EasingStyle.Quart)
+        SmoothTween(CloseBtn, 0.2, {TextColor3 = Colors.White}, Enum.EasingStyle.Quart)
+        SmoothTween(CloseBtn, 0.2, {Size = UDim2.new(0, 38, 0, 30)}, Enum.EasingStyle.Quart)
+    end)
+    
+    CloseBtn.MouseLeave:Connect(function()
+        SmoothTween(CloseBtn, 0.2, {BackgroundColor3 = Colors.DarkBlack}, Enum.EasingStyle.Quart)
+        SmoothTween(CloseBtn, 0.2, {TextColor3 = Colors.Error}, Enum.EasingStyle.Quart)
+        SmoothTween(CloseBtn, 0.2, {Size = UDim2.new(0, 35, 0, 28)}, Enum.EasingStyle.Quart)
+    end)
+    
+    CloseBtn.MouseButton1Down:Connect(function()
+        SmoothTween(CloseBtn, 0.1, {Size = UDim2.new(0, 32, 0, 26)}, Enum.EasingStyle.Quad)
+    end)
+    
+    CloseBtn.MouseButton1Up:Connect(function()
+        SmoothTween(CloseBtn, 0.1, {Size = UDim2.new(0, 35, 0, 28)}, Enum.EasingStyle.Quad)
+    end)
+    
+    CloseBtn.MouseButton1Click:Connect(function()
+        SmoothTween(MainContainer, 0.3, {Size = UDim2.new(0, 0, 0, 0)}, Enum.EasingStyle.Back)
+        task.wait(0.3)
+        ScreenGui:Destroy()
+        existingUI = nil
+        -- Note: Does NOT load main() - User must validate key first
+    end)
+    
+    -- Draggable functionality (Header acts as drag handle)
+    local function makeDraggable(frame, dragArea)
+        local dragging, dragStart, startPos
+        
+        dragArea.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dragStart = input.Position
+                startPos = frame.Position
+            end
+        end)
+        
+        dragArea.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+            end
+        end)
+        
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging then
+                local delta = input.Position - dragStart
+                frame.Position = UDim2.new(
+                    startPos.X.Scale,
+                    startPos.X.Offset + delta.X,
+                    startPos.Y.Scale,
+                    startPos.Y.Offset + delta.Y
+                )
+            end
+        end)
+    end
+    
+    makeDraggable(MainContainer, HeaderContainer)
+    
+    -- Separator line below header
+    CreateObject("Frame", {
+        Parent = MainContainer,
+        BackgroundColor3 = Color3.fromRGB(80, 80, 100),
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, 1),
+        Position = UDim2.new(0, 0, 0, headerHeight),
+        ZIndex = 5
+    })
+    
+    -- Main content area
+    local ContentArea = CreateObject("Frame", {
+        Parent = MainContainer,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -30, 1, -(headerHeight + 20)),
+        Position = UDim2.new(0, 15, 0, headerHeight + 15),
+        ZIndex = 1
+    })
+    
+    -- Description text (Changes based on API status)
+    local DescText = CreateObject("TextLabel", {
+        Parent = ContentArea,
+        BackgroundTransparency = 1,
+        Text = keySystemFailed and "Key system unavailable. Enter any key to bypass or join Discord for help.\nJoin our Discord if you have any issues or need help!" or "Verify your key or get a new one by clicking 'Get Key'.\nJoin our Discord if you have any issues or need help!",
+        Font = Enum.Font.Gotham,
+        TextSize = 11,
+        TextColor3 = Color3.fromRGB(180, 180, 200),
+        Position = UDim2.new(0, 0, 0, -10),
+        Size = UDim2.new(1, 0, 0, 45),
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top,
+        ZIndex = 1,
+        TextTransparency = 1
+    })
+    SmoothTween(DescText, 0.5, {Position = UDim2.new(0, 0, 0, 0), TextTransparency = 0}, Enum.EasingStyle.Back)
+    
+    -- Notify if API failed to load
+    if keySystemFailed then
+        createNotification("Key system disabled due to executor restrictions. Use any key to continue.", "error")
+    end
+    
+    -- Key input textbox
+    local KeyInput = CreateObject("TextBox", {
+        Parent = ContentArea,
+        BackgroundColor3 = Colors.MediumGray,
+        Text = "",
+        PlaceholderText = keySystemFailed and "Any key to bypass..." or "Enter Key...",
+        PlaceholderColor3 = Color3.fromRGB(120, 120, 140),
+        Font = Enum.Font.Gotham,
+        TextSize = 12,
+        TextColor3 = Colors.White,
+        Position = UDim2.new(0, 0, 0, 40),
+        Size = UDim2.new(1, 0, 0, 38),
+        ClearTextOnFocus = false,
+        BorderSizePixel = 0,
+        ZIndex = 1,
+        TextTransparency = 1,
+        BackgroundTransparency = 1
+    })
+    CreateObject("UICorner", {Parent = KeyInput, CornerRadius = UDim.new(0, 6)})
+    CreateObject("UIPadding", {Parent = KeyInput, PaddingLeft = UDim.new(0, 12)})
+    SmoothTween(KeyInput, 0.5, {Position = UDim2.new(0, 0, 0, 50), TextTransparency = 0, BackgroundTransparency = 0}, Enum.EasingStyle.Back)
+    
+    -- Status label for feedback (e.g., "Valid key!")
+    local StatusLabel = CreateObject("TextLabel", {
+        Parent = ContentArea,
+        BackgroundTransparency = 1,
+        BackgroundColor3 = Colors.DarkBlack,
+        BorderSizePixel = 0,
+        Text = "",
+        Font = Enum.Font.GothamBold,
+        TextSize = 11,
+        TextColor3 = Colors.Error,
+        Position = UDim2.new(0, 0, 0, 200),
+        Size = UDim2.new(1, 0, 0, 25),
+        TextXAlignment = Enum.TextXAlignment.Center,
+        TextTransparency = 1,
+        ZIndex = 2
+    })
+    CreateObject("UICorner", {Parent = StatusLabel, CornerRadius = UDim.new(0, 6)})
+    CreateObject("UIPadding", {Parent = StatusLabel, PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 4)})
+    
+    -- Button frame for Get Key / Check Key
+    local ButtonsFrame = CreateObject("Frame", {
+        Parent = ContentArea,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 0, 0, 105),
+        Size = UDim2.new(1, 0, 0, 40),
+        ZIndex = 1
+    })
+    
+    -- Get Key button (Opens provider selection)
+    local GetKeyBtn = CreateObject("TextButton", {
+        Parent = ButtonsFrame,
+        BackgroundColor3 = Colors.Orange,
+        Text = keySystemFailed and "Skip (Disabled)" or "Get Key",
+        Font = Enum.Font.GothamBold,
+        TextSize = 13,
+        TextColor3 = keySystemFailed and Colors.LightGray or Colors.White,
+        Position = UDim2.new(0, 0, 0, 0),
+        Size = UDim2.new(0.48, 0, 1, 0),
+        AutoButtonColor = false,
+        BorderSizePixel = 0,
+        ZIndex = 1,
+        BackgroundTransparency = 1,
+        TextTransparency = 1
+    })
+    CreateObject("UICorner", {Parent = GetKeyBtn, CornerRadius = UDim.new(0, 6)})
+    SmoothTween(GetKeyBtn, 0.5, {BackgroundTransparency = 0, TextTransparency = 0}, Enum.EasingStyle.Back)
+    
+    -- Get Key animations
+    GetKeyBtn.MouseEnter:Connect(function()
+        if not keySystemFailed then
+            SmoothTween(GetKeyBtn, 0.2, {BackgroundColor3 = Colors.DarkOrange}, Enum.EasingStyle.Quart)
+            SmoothTween(GetKeyBtn, 0.2, {Size = UDim2.new(0.49, 0, 1.02, 0)}, Enum.EasingStyle.Quart)
+        end
+    end)
+    
+    GetKeyBtn.MouseLeave:Connect(function()
+        if not keySystemFailed then
+            SmoothTween(GetKeyBtn, 0.2, {BackgroundColor3 = Colors.Orange}, Enum.EasingStyle.Quart)
+            SmoothTween(GetKeyBtn, 0.2, {Size = UDim2.new(0.48, 0, 1, 0)}, Enum.EasingStyle.Quart)
+        end
+    end)
+    
+    GetKeyBtn.MouseButton1Down:Connect(function()
+        if not keySystemFailed then
+            SmoothTween(GetKeyBtn, 0.1, {Size = UDim2.new(0.47, 0, 0.98, 0)}, Enum.EasingStyle.Quad)
+        end
+    end)
+    
+    GetKeyBtn.MouseButton1Up:Connect(function()
+        if not keySystemFailed then
+            SmoothTween(GetKeyBtn, 0.1, {Size = UDim2.new(0.48, 0, 1, 0)}, Enum.EasingStyle.Quad)
+        end
+    end)
+    
+    if keySystemFailed then
+        GetKeyBtn.MouseButton1Click:Connect(function()
+            createNotification("Skipping key generation (disabled).", "info")
+        end)
+    end
+    
+    -- Check Key button (Validates entered key)
+    local CheckKeyBtn = CreateObject("TextButton", {
+        Parent = ButtonsFrame,
+        BackgroundColor3 = Colors.MediumGray,
+        Text = "Check Key",
+        Font = Enum.Font.GothamBold,
+        TextSize = 13,
+        TextColor3 = Colors.White,
+        Position = UDim2.new(0.52, 0, 0, 0),
+        Size = UDim2.new(0.48, 0, 1, 0),
+        AutoButtonColor = false,
+        BorderSizePixel = 0,
+        ZIndex = 1,
+        BackgroundTransparency = 1,
+        TextTransparency = 1
+    })
+    CreateObject("UICorner", {Parent = CheckKeyBtn, CornerRadius = UDim.new(0, 6)})
+    SmoothTween(CheckKeyBtn, 0.5, {BackgroundTransparency = 0, TextTransparency = 0}, Enum.EasingStyle.Back)
+    
+    -- Check Key animations
+    CheckKeyBtn.MouseEnter:Connect(function()
+        SmoothTween(CheckKeyBtn, 0.2, {BackgroundColor3 = Color3.fromRGB(80, 80, 100)}, Enum.EasingStyle.Quart)
+        SmoothTween(CheckKeyBtn, 0.2, {Size = UDim2.new(0.49, 0, 1.02, 0)}, Enum.EasingStyle.Quart)
+    end)
+    
+    CheckKeyBtn.MouseLeave:Connect(function()
+        SmoothTween(CheckKeyBtn, 0.2, {BackgroundColor3 = Colors.MediumGray}, Enum.EasingStyle.Quart)
+        SmoothTween(CheckKeyBtn, 0.2, {Size = UDim2.new(0.48, 0, 1, 0)}, Enum.EasingStyle.Quart)
+    end)
+    
+    CheckKeyBtn.MouseButton1Down:Connect(function()
+        SmoothTween(CheckKeyBtn, 0.1, {Size = UDim2.new(0.47, 0, 0.98, 0)}, Enum.EasingStyle.Quad)
+    end)
+    
+    CheckKeyBtn.MouseButton1Up:Connect(function()
+        SmoothTween(CheckKeyBtn, 0.1, {Size = UDim2.new(0.48, 0, 1, 0)}, Enum.EasingStyle.Quad)
+    end)
+    
+    -- State management for UI
+    local isLoading = false
+    local currentScreen = "main"
+    
+    -- Get Key logic: Show provider options
+    GetKeyBtn.MouseButton1Click:Connect(function()
+        if isLoading or keySystemFailed then return end
+        currentScreen = "getkey"
+        createNotification("Loading key options...", "info")
+        
+        -- Hide main elements
+        DescText.Visible = false
+        KeyInput.Visible = false
+        StatusLabel.Visible = false
+        ButtonsFrame.Visible = false
+        
+        local OptionHeight = 50
+        local spacing = 8
+        
+        -- Create buttons for each provider
+        for i, provider in ipairs(Config.providers) do
+            local OptionBtn = CreateObject("TextButton", {
+                Parent = ContentArea,
+                BackgroundColor3 = Colors.MediumGray,
+                Text = "",
+                Position = UDim2.new(0, 0, 0, -10),
+                Size = UDim2.new(1, 0, 0, OptionHeight),
+                AutoButtonColor = false,
+                BorderSizePixel = 0,
+                Name = "Option" .. i,
+                ZIndex = 1,
+                BackgroundTransparency = 1
+            })
+            CreateObject("UICorner", {Parent = OptionBtn, CornerRadius = UDim.new(0, 8)})
+            SmoothTween(OptionBtn, 0.3, {Position = UDim2.new(0, 0, 0, (i-1) * (OptionHeight + spacing) + 10), BackgroundTransparency = 0}, Enum.EasingStyle.Back)
+            
+            -- Provider name label
+            local optionLabel = CreateObject("TextLabel", {
+                Parent = OptionBtn,
+                BackgroundTransparency = 1,
+                Text = provider.displayName,
+                Font = Enum.Font.GothamBold,
+                TextSize = 13,
+                TextColor3 = Colors.White,
+                Position = UDim2.new(0, 12, 0, 8),
+                Size = UDim2.new(1, -20, 0, 20),
+                ZIndex = 1
+            })
+            
+            -- Provider description
+            local optionDesc = CreateObject("TextLabel", {
+                Parent = OptionBtn,
+                BackgroundTransparency = 1,
+                Text = "2 checkpoints, " .. provider.durationHours .. " hours",
+                Font = Enum.Font.Gotham,
+                TextSize = 10,
+                TextColor3 = Color3.fromRGB(150, 150, 170),
+                Position = UDim2.new(0, 12, 0, 28),
+                Size = UDim2.new(1, -20, 0, 15),
+                ZIndex = 1
+            })
+            
+            -- Provider button hover
+            OptionBtn.MouseEnter:Connect(function()
+                SmoothTween(OptionBtn, 0.2, {BackgroundColor3 = Color3.fromRGB(80, 80, 110)}, Enum.EasingStyle.Quart)
+            end)
+            
+            OptionBtn.MouseLeave:Connect(function()
+                SmoothTween(OptionBtn, 0.2, {BackgroundColor3 = Colors.MediumGray}, Enum.EasingStyle.Quart)
+            end)
+            
+            -- Generate link for selected provider
+            OptionBtn.MouseButton1Click:Connect(function()
+                if isLoading then return end
+                isLoading = true
+                local spinner = createSpinner(ContentArea)
+                ShowStatus(StatusLabel, "Generating link...", Colors.Orange)
+                createNotification("Redeeming key for " .. provider.displayName .. "...", "info")
+                
+                task.spawn(function()
+                    local link = generateLink(provider.name)
+                    
+                    if spinner then spinner:Destroy() end
+                    StatusLabel.Visible = true
+                    
+                    if link then
+                        pcall(function()
+                            if setclipboard then 
+                                setclipboard(link) 
+                            end
+                        end)
+                        ShowStatus(StatusLabel, "✓ Link generated!", Colors.Success)
+                        createNotification("Key link copied to clipboard! Redeem now.", "success")
+                    else
+                        ShowStatus(StatusLabel, "Failed to generate link", Colors.Error)
+                        createNotification("Failed to redeem key. Try again or contact Discord.", "error")
+                    end
+                    isLoading = false
+                    task.wait(0.5)
+                    
+                    -- Return to main screen
+                    currentScreen = "main"
+                    DescText.Visible = true
+                    SmoothTween(DescText, 0.3, {TextTransparency = 0}, Enum.EasingStyle.Back)
+                    KeyInput.Visible = true
+                    SmoothTween(KeyInput, 0.3, {TextTransparency = 0, BackgroundTransparency = 0}, Enum.EasingStyle.Back)
+                    StatusLabel.Visible = true
+                    ButtonsFrame.Visible = true
+                    SmoothTween(GetKeyBtn, 0.3, {BackgroundTransparency = 0, TextTransparency = 0}, Enum.EasingStyle.Back)
+                    SmoothTween(CheckKeyBtn, 0.3, {BackgroundTransparency = 0, TextTransparency = 0}, Enum.EasingStyle.Back)
+                    for j = 1, #Config.providers do
+                        local opt = ContentArea:FindFirstChild("Option" .. j)
+                        if opt then 
+                            SmoothTween(opt, 0.3, {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0)}, Enum.EasingStyle.Back)
+                            task.wait(0.05)
+                            opt:Destroy() 
+                        end
+                    end
+                    local back = ContentArea:FindFirstChild("BackButton")
+                    if back then back:Destroy() end
+                end)
+            end)
+        end
+        
+        -- Back button for provider screen
+        local BackBtn = CreateObject("TextButton", {
+            Parent = ContentArea,
+            BackgroundColor3 = Colors.MediumGray,
+            Text = "← Back",
+            Font = Enum.Font.GothamBold,
+            TextSize = 12,
+            TextColor3 = Colors.White,
+            Position = UDim2.new(0, 0, 0, -10),
+            Size = UDim2.new(1, 0, 0, 35),
+            AutoButtonColor = false,
+            BorderSizePixel = 0,
+            Name = "BackButton",
+            ZIndex = 1,
+            BackgroundTransparency = 1
+        })
+        CreateObject("UICorner", {Parent = BackBtn, CornerRadius = UDim.new(0, 6)})
+        SmoothTween(BackBtn, 0.3, {Position = UDim2.new(0, 0, 0, (#Config.providers * 58 + 20)), BackgroundTransparency = 0}, Enum.EasingStyle.Back)
+        
+        BackBtn.MouseButton1Click:Connect(function()
+            createNotification("Returning to main menu...", "info")
+            currentScreen = "main"
+            for j = 1, #Config.providers do
+                local opt = ContentArea:FindFirstChild("Option" .. j)
+                if opt then 
+                    SmoothTween(opt, 0.3, {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0)}, Enum.EasingStyle.Back)
+                    task.wait(0.05)
+                    opt:Destroy() 
+                end
+            end
+            local back = ContentArea:FindFirstChild("BackButton")
+            if back then 
+                SmoothTween(back, 0.3, {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0)}, Enum.EasingStyle.Back)
+                task.wait(0.05)
+                back:Destroy() 
+            end
+            task.wait(0.2)
+            DescText.Visible = true
+            SmoothTween(DescText, 0.3, {TextTransparency = 0}, Enum.EasingStyle.Back)
+            KeyInput.Visible = true
+            SmoothTween(KeyInput, 0.3, {TextTransparency = 0, BackgroundTransparency = 0}, Enum.EasingStyle.Back)
+            StatusLabel.Visible = true
+            ButtonsFrame.Visible = true
+            SmoothTween(GetKeyBtn, 0.3, {BackgroundTransparency = 0, TextTransparency = 0}, Enum.EasingStyle.Back)
+            SmoothTween(CheckKeyBtn, 0.3, {BackgroundTransparency = 0, TextTransparency = 0}, Enum.EasingStyle.Back)
+        end)
+    end)
+    
+    -- Check Key logic: Validate and load if successful
+    CheckKeyBtn.MouseButton1Click:Connect(function()
+        if isLoading then return end
+        local userKey = KeyInput.Text:gsub("%s+", "")  -- Trim whitespace
+        if userKey == "" then
+            createNotification("Please enter a key first!", "error")
+            return
+        end
+        
+        isLoading = true
+        local spinner = createSpinner(ContentArea)
+        ShowStatus(StatusLabel, "Verifying key...", Colors.Orange)
+        createNotification("Verifying your key...", "info")
+        
+        task.spawn(function()
+            local isValid = keySystemFailed or validateKey(userKey)
+            if spinner then spinner:Destroy() end
+            if isValid then
+                ShowStatus(StatusLabel, "✓ Valid key! Loading...", Colors.Success)
+                createNotification(keySystemFailed and "Bypassed! Loading..." or "Key verified successfully! Loading...", "success")
+                
+                -- Save valid key if API is working
+                if not keySystemFailed then
+                    local keys = readKeys()
+                    local exists = false
+                    for _, k in ipairs(keys) do
+                        if k == userKey then exists = true break end
+                    end
+                    if not exists then
+                        table.insert(keys, userKey)
+                        saveKeys(keys)
+                    end
+                end
+                
+                -- Set global flag for session (Optional for your loader checks)
+                getgenv().KeySystemValidated = true
+                
+                task.wait(0.5)
+                SmoothTween(MainContainer, 0.4, {Position = UDim2.new(0.5, 0, 1.5, 0)}, Enum.EasingStyle.Back)
+                task.wait(0.3)
+                ScreenGui:Destroy()
+                existingUI = nil
+                main()  -- Load your scripts
+            else
+                ShowStatus(StatusLabel, "✕ Invalid key!", Colors.Error)
+                createNotification("Invalid key! Please check and try again.", "error")
+                
+                -- Remove invalid key from storage
+                local keys = readKeys()
+                local newKeys = {}
+                for _, k in ipairs(keys) do
+                    if k ~= userKey then table.insert(newKeys, k) end
+                end
+                saveKeys(newKeys)
+                
+                isLoading = false
+            end
+        end)
+    end)
+    
+    -- Enter key on Enter press
+    KeyInput.FocusLost:Connect(function(enterPressed)
+        if enterPressed and not isLoading then
+            CheckKeyBtn.MouseButton1Click:Fire()
+        end
+    end)
+    
+    -- Animate UI entrance
+    MainContainer.Position = UDim2.new(0.5, 0, -1, 0)
+    SmoothTween(MainContainer, 0.6, {Position = UDim2.new(0.5, 0, 0.5, 0)}, Enum.EasingStyle.Back)
+    
+    existingUI = ScreenGui
+end
+
+-- Initialize: Show loading screen
+local loadingScreen, loadingBackground = createLoadingScreen()
+task.wait(1.5)
+if loadingScreen and loadingScreen.Parent then
+    SmoothTween(loadingBackground, 0.3, {BackgroundTransparency = 1})
+    task.wait(0.3)
+    loadingScreen:Destroy()
+end
+
+-- Startup flow: Check saved keys, then show UI or load
+tryKeys(function(valid, key)
+    if valid then
+        createNotification("Welcome back! Key loaded.", "success")
+        main()
+    else
+        createKeySystemUI()
+    end
+end)
